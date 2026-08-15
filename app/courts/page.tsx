@@ -1,5 +1,6 @@
 import CourtAvailability from "./CourtAvailability";
 import DateSelector from "./DateSelector";
+
 type Court = {
   id: string;
   name: string;
@@ -17,9 +18,19 @@ type Club = {
 };
 
 async function getClubs(city?: string): Promise<Club[]> {
-  const url = city
-    ? `http://localhost:3000/api/clubs?city=${encodeURIComponent(city)}`
-    : "http://localhost:3000/api/clubs";
+  const params = new URLSearchParams();
+
+  if (city) {
+    params.set("city", city);
+  }
+
+  const baseUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "http://localhost:3000";
+
+  const url = `${baseUrl}/api/clubs${
+    params.toString() ? `?${params.toString()}` : ""
+  }`;
 
   const response = await fetch(url, {
     cache: "no-store",
@@ -43,8 +54,10 @@ export default async function CourtsPage({
   const params = await searchParams;
 
   const location = params.location;
+
   const date =
-    params.date || new Date().toISOString().split("T")[0];
+    params.date ||
+    new Date().toISOString().split("T")[0];
 
   const clubs = await getClubs(location);
 
@@ -57,7 +70,10 @@ export default async function CourtsPage({
             href="/home"
             className="text-2xl font-bold tracking-tight"
           >
-            PADEL<span className="text-[#b8f500]">BOOK</span>
+            PADEL
+            <span className="text-[#b8f500]">
+              BOOK
+            </span>
           </a>
 
           <a
@@ -81,25 +97,27 @@ export default async function CourtsPage({
           </h1>
 
           <div className="mt-6 flex flex-wrap gap-3">
-          {location && (
+            {location && (
+              <div className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-sm text-white/70">
+                Location:{" "}
+                <span className="text-white">
+                  {location}
+                </span>
+              </div>
+            )}
+
+            <DateSelector
+              date={date}
+              location={location}
+            />
+
             <div className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-sm text-white/70">
-              Location:{" "}
+              Duration:{" "}
               <span className="text-white">
-                {location}
+                1h30
               </span>
             </div>
-          )}
-
-          <DateSelector date={date} />
-
-          <div className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-sm text-white/70">
-            Duration:{" "}
-            <span className="text-white">
-              1h30
-            </span>
           </div>
-        </div>
-                  
         </div>
       </section>
 

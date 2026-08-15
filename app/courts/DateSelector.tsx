@@ -1,14 +1,17 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 type Props = {
   date: string;
+  location?: string;
 };
 
-export default function DateSelector({ date }: Props) {
+export default function DateSelector({
+  date,
+  location,
+}: Props) {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   function handleDateChange(
     event: React.ChangeEvent<HTMLInputElement>
@@ -19,7 +22,11 @@ export default function DateSelector({ date }: Props) {
       return;
     }
 
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams();
+
+    if (location) {
+      params.set("location", location);
+    }
 
     params.set("date", newDate);
 
@@ -35,7 +42,7 @@ export default function DateSelector({ date }: Props) {
       <input
         type="date"
         value={date}
-        min={new Date().toISOString().split("T")[0]}
+        min={date}
         onChange={handleDateChange}
         className="bg-transparent text-white outline-none"
       />
