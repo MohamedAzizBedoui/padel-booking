@@ -1,6 +1,9 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import {
+  useRouter,
+  useSearchParams,
+} from "next/navigation";
 
 type Props = {
   date: string;
@@ -12,6 +15,7 @@ export default function DateSelector({
   location,
 }: Props) {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   function handleDateChange(
     event: React.ChangeEvent<HTMLInputElement>
@@ -22,16 +26,24 @@ export default function DateSelector({
       return;
     }
 
-    const params = new URLSearchParams();
-
-    if (location) {
-      params.set("location", location);
-    }
+    const params = new URLSearchParams(
+      searchParams.toString()
+    );
 
     params.set("date", newDate);
 
+    if (location) {
+      params.set("location", location);
+    } else {
+      params.delete("location");
+    }
+
     router.push(`/courts?${params.toString()}`);
   }
+
+  const today = new Date()
+    .toISOString()
+    .split("T")[0];
 
   return (
     <div className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-sm text-white/70">
@@ -42,7 +54,7 @@ export default function DateSelector({
       <input
         type="date"
         value={date}
-        min={date}
+        min={today}
         onChange={handleDateChange}
         className="bg-transparent text-white outline-none"
       />

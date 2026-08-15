@@ -1,3 +1,4 @@
+import { prisma } from "@/lib/prisma";
 import CourtAvailability from "./CourtAvailability";
 import DateSelector from "./DateSelector";
 
@@ -18,29 +19,21 @@ type Club = {
 };
 
 async function getClubs(city?: string): Promise<Club[]> {
-  const params = new URLSearchParams();
-
-  if (city) {
-    params.set("city", city);
-  }
-
-  const baseUrl =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    "http://localhost:3000";
-
-  const url = `${baseUrl}/api/clubs${
-    params.toString() ? `?${params.toString()}` : ""
-  }`;
-
-  const response = await fetch(url, {
-    cache: "no-store",
+  const clubs = await prisma.club.findMany({
+    where: city
+      ? {
+          city: {
+            equals: city,
+            mode: "insensitive",
+          },
+        }
+      : undefined,
+    include: {
+      courts: true,
+    },
   });
 
-  if (!response.ok) {
-    throw new Error("Failed to fetch clubs");
-  }
-
-  return response.json();
+  return clubs;
 }
 
 export default async function CourtsPage({
