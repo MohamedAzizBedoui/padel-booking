@@ -379,12 +379,24 @@ export default function Page() {
                     </label>
 
                     {mode === "login" && (
-                      <button
-                        type="button"
-                        className="text-[11px] text-white/25 transition hover:text-[#b8f500]"
-                      >
-                        Forgot password?
-                      </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const normalizedEmail = email.trim().toLowerCase();
+
+                        if (!normalizedEmail || !normalizedEmail.includes("@")) {
+                          setError("Please enter your email address first.");
+                          return;
+                        }
+
+                        router.push(
+                          `/forgot-password?email=${encodeURIComponent(normalizedEmail)}`
+                        );
+                      }}
+                      className="text-[11px] text-white/25 transition hover:text-[#b8f500]"
+                    >
+                      Forgot password?
+                    </button>
                     )}
                   </div>
 
