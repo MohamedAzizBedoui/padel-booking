@@ -1,0 +1,82 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  name      String?
+  password  String
+  role      UserRole  @default(PLAYER)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  bookings  Booking[]
+  clubs     Club[]
+}
+
+model Club {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  address     String?
+  ownerId     String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  city        String
+  bookings    Booking[]
+  owner       User      @relation(fields: [ownerId], references: [id])
+  courts      Court[]
+}
+
+model Court {
+  id        String    @id @default(cuid())
+  name      String
+  price     Float
+  active    Boolean   @default(true)
+  clubId    String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  bookings  Booking[]
+  club      Club      @relation(fields: [clubId], references: [id])
+}
+
+model Booking {
+  id            String        @id @default(cuid())
+  customerName  String
+  customerPhone String
+  customerEmail String?
+  date          DateTime
+  startTime     String
+  endTime       String
+  price         Float
+  status        BookingStatus @default(CONFIRMED)
+  courtId       String
+  clubId        String
+  userId        String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  club          Club          @relation(fields: [clubId], references: [id])
+  court         Court         @relation(fields: [courtId], references: [id])
+  user          User?         @relation(fields: [userId], references: [id])
+
+  @@index([courtId, date])
+  @@index([clubId, date])
+  @@index([courtId, date, startTime])
+}
+
+enum UserRole {
+  PLAYER
+  CLUB_OWNER
+  ADMIN
+}
+
+enum BookingStatus {
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
