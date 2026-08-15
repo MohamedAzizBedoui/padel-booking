@@ -49,23 +49,17 @@ export default function HomePage() {
   const [booking, setBooking] = useState<Booking | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Search state
   const [location, setLocation] = useState("");
   const [date, setDate] = useState("");
 
-  // Clubs/cities
   const [cities, setCities] = useState<string[]>([]);
   const [citiesLoading, setCitiesLoading] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function loadDashboard() {
       try {
-        /*
-         * Load authenticated user's bookings.
-         *
-         * /api/bookings uses NextAuth's auth()
-         * on the server.
-         */
         const response = await fetch("/api/bookings", {
           method: "GET",
           cache: "no-store",
@@ -76,22 +70,39 @@ export default function HomePage() {
           return;
         }
 
+        if (!response.ok) {
+          throw new Error("Failed to fetch bookings");
+        }
+
         const data: BookingsResponse = await response.json();
 
-        if (!response.ok || !data.success) {
+        if (!data.success) {
           console.error(
             "Dashboard request failed:",
             data.error
           );
-
           return;
         }
 
         const bookings = data.bookings ?? [];
 
         /*
-         * Find the next confirmed booking.
+         * The API stores the booking date as UTC midnight:
+         *
+         * 2026-08-15T00:00:00.000Z
+         *
+         * We only need the calendar date, so extract YYYY-MM-DD
+         * directly instead of converting the date through the
+         * browser timezone.
          */
+        function getBookingDateTime(item: Booking): Date {
+          const datePart = item.date.slice(0, 10);
+
+          return new Date(
+            `${datePart}T${item.startTime}:00`
+          );
+        }
+
         const now = new Date();
 
         const upcoming = bookings
@@ -100,28 +111,24 @@ export default function HomePage() {
               return false;
             }
 
-            const bookingDate = new Date(item.date);
+            const bookingDateTime =
+              getBookingDateTime(item);
 
-            return bookingDate >= now;
+            return bookingDateTime.getTime() >= now.getTime();
           })
           .sort((a, b) => {
-            const dateDifference =
-              new Date(a.date).getTime() -
-              new Date(b.date).getTime();
-
-            if (dateDifference !== 0) {
-              return dateDifference;
-            }
-
-            return a.startTime.localeCompare(
-              b.startTime
+            return (
+              getBookingDateTime(a).getTime() -
+              getBookingDateTime(b).getTime()
             );
           });
 
-        setBooking(upcoming[0] ?? null);
+        if (!cancelled) {
+          setBooking(upcoming[0] ?? null);
+        }
 
         /*
-         * Load current NextAuth session.
+         * Load the authenticated session.
          */
         const sessionResponse = await fetch(
           "/api/auth/session",
@@ -131,7 +138,10 @@ export default function HomePage() {
           }
         );
 
-        if (sessionResponse.ok) {
+        if (
+          !cancelled &&
+          sessionResponse.ok
+        ) {
           const sessionData =
             await sessionResponse.json();
 
@@ -145,28 +155,46 @@ export default function HomePage() {
           }
         }
       } catch (error) {
-        console.error("Dashboard error:", error);
+        console.error(
+          "Dashboard error:",
+          error
+        );
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     }
 
     loadDashboard();
+
+    /*
+     * Refresh bookings periodically so a booking created
+     * elsewhere appears on the dashboard automatically.
+     */
+    const interval = setInterval(
+      loadDashboard,
+      10000
+    );
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, [router]);
 
-  /*
-   * Load clubs so we can build the location selector
-   * dynamically from the database.
-   */
   useEffect(() => {
     async function loadCities() {
       try {
         setCitiesLoading(true);
 
-        const response = await fetch("/api/clubs", {
-          method: "GET",
-          cache: "no-store",
-        });
+        const response = await fetch(
+          "/api/clubs",
+          {
+            method: "GET",
+            cache: "no-store",
+          }
+        );
 
         if (!response.ok) {
           console.error(
@@ -204,14 +232,15 @@ export default function HomePage() {
       }
     }
 
-    // Load cities immediately
     loadCities();
 
-    // Auto-refresh every 5 seconds to show latest prices
-    const interval = setInterval(loadCities, 5000);
+    const interval = setInterval(
+      loadCities,
+      5000
+    );
 
-    // Cleanup interval on unmount
-    return () => clearInterval(interval);
+    return () =>
+      clearInterval(interval);
   }, []);
 
   function formatDate(dateValue: string) {
@@ -226,12 +255,6 @@ export default function HomePage() {
     );
   }
 
-  /*
-   * Search button.
-   *
-   * Example:
-   * /courts?location=Tunis&date=2026-08-20
-   */
   function handleSearch() {
     const params = new URLSearchParams();
 
@@ -246,23 +269,21 @@ export default function HomePage() {
     const query = params.toString();
 
     router.push(
-      query ? `/courts?${query}` : "/courts"
+      query
+        ? `/courts?${query}`
+        : "/courts"
     );
   }
 
-  /*
-   * Today's date in YYYY-MM-DD format.
-   *
-   * Used as the minimum date in the date picker,
-   * preventing users from selecting a past date.
-   */
   function getTodayString() {
     const today = new Date();
 
     const year = today.getFullYear();
+
     const month = String(
       today.getMonth() + 1
     ).padStart(2, "0");
+
     const day = String(
       today.getDate()
     ).padStart(2, "0");
@@ -286,19 +307,19 @@ export default function HomePage() {
 
   return (
     <main className="min-h-screen bg-[#070707] text-white">
-      {/* Background glow */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute -left-40 -top-40 h-[500px] w-[500px] rounded-full bg-[#b8f500]/5 blur-[140px]" />
 
         <div className="absolute right-0 top-[35%] h-[400px] w-[400px] rounded-full bg-[#b8f500]/[0.025] blur-[140px]" />
       </div>
 
-      {/* Navigation */}
       <nav className="relative z-20 border-b border-white/10 bg-[#070707]/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5 lg:px-10">
           <button
             type="button"
-            onClick={() => router.push("/home")}
+            onClick={() =>
+              router.push("/home")
+            }
             className="text-left"
           >
             <div className="text-xl font-black tracking-[-0.04em]">
@@ -316,7 +337,9 @@ export default function HomePage() {
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={() => router.push("/bookings")}
+              onClick={() =>
+                router.push("/bookings")
+              }
               className="hidden rounded-full px-4 py-2 text-sm text-white/50 transition hover:bg-white/5 hover:text-white sm:block"
             >
               My bookings
@@ -324,7 +347,9 @@ export default function HomePage() {
 
             <button
               type="button"
-              onClick={() => router.push("/profile")}
+              onClick={() =>
+                router.push("/profile")
+              }
               className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-sm font-semibold transition hover:border-[#b8f500]/30 hover:bg-[#b8f500]/10"
             >
               {(user?.name?.[0] ?? "U").toUpperCase()}
@@ -333,9 +358,7 @@ export default function HomePage() {
         </div>
       </nav>
 
-      {/* Content */}
       <div className="relative z-10 mx-auto max-w-7xl px-6 py-10 lg:px-10 lg:py-14">
-        {/* Welcome */}
         <section>
           <p className="text-xs font-medium uppercase tracking-[0.25em] text-[#b8f500]">
             Player dashboard
@@ -360,16 +383,19 @@ export default function HomePage() {
 
             <button
               type="button"
-              onClick={() => router.push("/courts")}
+              onClick={() =>
+                router.push("/courts")
+              }
               className="w-full rounded-xl bg-[#b8f500] px-6 py-3.5 text-sm font-semibold text-black transition hover:bg-[#c8ff33] md:w-auto"
             >
               Book a court
-              <span className="ml-3">→</span>
+              <span className="ml-3">
+                →
+              </span>
             </button>
           </div>
         </section>
 
-        {/* Quick search */}
         <section className="mt-10">
           <div className="rounded-[1.75rem] border border-white/10 bg-white/[0.025] p-6">
             <div className="flex items-center justify-between">
@@ -389,7 +415,6 @@ export default function HomePage() {
             </div>
 
             <div className="mt-6 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
-              {/* Location */}
               <div className="relative">
                 <label className="flex cursor-pointer items-center gap-4 rounded-xl border border-white/10 bg-white/[0.035] px-4 py-3.5 transition hover:border-[#b8f500]/30 hover:bg-white/[0.05]">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/[0.05] text-sm text-white/40">
@@ -404,7 +429,9 @@ export default function HomePage() {
                     <select
                       value={location}
                       onChange={(event) =>
-                        setLocation(event.target.value)
+                        setLocation(
+                          event.target.value
+                        )
                       }
                       className="mt-1 w-full cursor-pointer appearance-none bg-transparent text-sm text-white/65 outline-none"
                     >
@@ -435,7 +462,6 @@ export default function HomePage() {
                 </label>
               </div>
 
-              {/* Date */}
               <div className="relative">
                 <label className="flex cursor-pointer items-center gap-4 rounded-xl border border-white/10 bg-white/[0.035] px-4 py-3.5 transition hover:border-[#b8f500]/30 hover:bg-white/[0.05]">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/[0.05] text-sm text-white/40">
@@ -452,7 +478,9 @@ export default function HomePage() {
                       value={date}
                       min={getTodayString()}
                       onChange={(event) =>
-                        setDate(event.target.value)
+                        setDate(
+                          event.target.value
+                        )
                       }
                       className="mt-1 w-full cursor-pointer bg-transparent text-sm text-white/65 outline-none [color-scheme:dark]"
                     />
@@ -460,7 +488,6 @@ export default function HomePage() {
                 </label>
               </div>
 
-              {/* Search */}
               <button
                 type="button"
                 onClick={handleSearch}
@@ -470,7 +497,6 @@ export default function HomePage() {
               </button>
             </div>
 
-            {/* Search summary */}
             {(location || date) && (
               <div className="mt-4 flex flex-wrap items-center gap-2">
                 <span className="text-xs text-white/25">
@@ -480,7 +506,9 @@ export default function HomePage() {
                 {location && (
                   <button
                     type="button"
-                    onClick={() => setLocation("")}
+                    onClick={() =>
+                      setLocation("")
+                    }
                     className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-white/60 transition hover:border-[#b8f500]/30 hover:text-[#b8f500]"
                   >
                     {location} ×
@@ -490,7 +518,9 @@ export default function HomePage() {
                 {date && (
                   <button
                     type="button"
-                    onClick={() => setDate("")}
+                    onClick={() =>
+                      setDate("")
+                    }
                     className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-white/60 transition hover:border-[#b8f500]/30 hover:text-[#b8f500]"
                   >
                     {formatDate(date)} ×
@@ -501,7 +531,6 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Upcoming booking */}
         <section className="mt-12">
           <div className="mb-5 flex items-end justify-between">
             <div>
@@ -516,7 +545,9 @@ export default function HomePage() {
 
             <button
               type="button"
-              onClick={() => router.push("/bookings")}
+              onClick={() =>
+                router.push("/bookings")
+              }
               className="text-sm text-white/35 transition hover:text-[#b8f500]"
             >
               View all →
@@ -526,7 +557,6 @@ export default function HomePage() {
           {booking ? (
             <div className="overflow-hidden rounded-[1.75rem] border border-white/10 bg-white/[0.025]">
               <div className="grid lg:grid-cols-[1fr_280px]">
-                {/* Main booking */}
                 <div className="p-6 md:p-8">
                   <div className="flex items-start justify-between gap-4">
                     <div>
@@ -562,7 +592,9 @@ export default function HomePage() {
                   <div className="mt-8 grid gap-3 sm:grid-cols-3">
                     <BookingDetail
                       label="Date"
-                      value={formatDate(booking.date)}
+                      value={formatDate(
+                        booking.date
+                      )}
                     />
 
                     <BookingDetail
@@ -589,7 +621,6 @@ export default function HomePage() {
                   </button>
                 </div>
 
-                {/* Side panel */}
                 <div className="border-t border-white/10 bg-white/[0.02] p-6 lg:border-l lg:border-t-0">
                   <p className="text-[10px] uppercase tracking-[0.2em] text-white/20">
                     Get ready
@@ -603,7 +634,9 @@ export default function HomePage() {
 
                   <button
                     type="button"
-                    onClick={() => router.push("/courts")}
+                    onClick={() =>
+                      router.push("/courts")
+                    }
                     className="mt-6 text-sm font-medium text-[#b8f500] transition hover:text-[#d0ff4a]"
                   >
                     Book another court →
@@ -629,7 +662,9 @@ export default function HomePage() {
 
               <button
                 type="button"
-                onClick={() => router.push("/courts")}
+                onClick={() =>
+                  router.push("/courts")
+                }
                 className="mt-6 rounded-xl bg-[#b8f500] px-6 py-3 text-sm font-semibold text-black transition hover:bg-[#c8ff33]"
               >
                 Find a new booking
@@ -638,7 +673,6 @@ export default function HomePage() {
           )}
         </section>
 
-        {/* Quick actions */}
         <section className="mt-12">
           <div className="mb-5">
             <p className="text-xs uppercase tracking-[0.2em] text-white/25">
@@ -655,26 +689,31 @@ export default function HomePage() {
               number="01"
               title="Book a court"
               description="Find available courts"
-              onClick={() => router.push("/courts")}
+              onClick={() =>
+                router.push("/courts")
+              }
             />
 
             <ActionCard
               number="02"
               title="My bookings"
               description="View your reservations"
-              onClick={() => router.push("/bookings")}
+              onClick={() =>
+                router.push("/bookings")
+              }
             />
 
             <ActionCard
               number="03"
               title="My profile"
               description="Manage your account"
-              onClick={() => router.push("/profile")}
+              onClick={() =>
+                router.push("/profile")
+              }
             />
           </div>
         </section>
 
-        {/* Explore */}
         <section className="mt-12">
           <div className="mb-5 flex items-end justify-between">
             <div>
@@ -689,7 +728,9 @@ export default function HomePage() {
 
             <button
               type="button"
-              onClick={() => router.push("/courts")}
+              onClick={() =>
+                router.push("/courts")
+              }
               className="text-sm text-white/35 transition hover:text-[#b8f500]"
             >
               View all →
@@ -732,7 +773,6 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Footer */}
         <footer className="mt-20 border-t border-white/10 pt-8">
           <div className="flex flex-col justify-between gap-4 pb-8 text-xs text-white/20 sm:flex-row">
             <div className="font-bold tracking-tight">
@@ -748,7 +788,9 @@ export default function HomePage() {
 
             <button
               type="button"
-              onClick={() => router.push("/profile")}
+              onClick={() =>
+                router.push("/profile")
+              }
               className="text-left transition hover:text-white/50 sm:text-right"
             >
               Account settings
@@ -759,10 +801,6 @@ export default function HomePage() {
     </main>
   );
 }
-
-/* ---------------------------------- */
-/* Components                         */
-/* ---------------------------------- */
 
 function BookingDetail({
   label,
@@ -846,7 +884,6 @@ function ClubCard({
           : "hover:-translate-y-1 hover:border-white/20"
       }`}
     >
-      {/* Visual */}
       <div className="relative h-36 overflow-hidden bg-gradient-to-br from-white/[0.07] to-white/[0.015]">
         <div className="absolute inset-5 rounded-xl border border-[#b8f500]/10">
           <div className="absolute left-1/2 top-0 h-full w-px bg-[#b8f500]/10" />
@@ -863,7 +900,6 @@ function ClubCard({
         </div>
       </div>
 
-      {/* Details */}
       <div className="p-5">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -890,4 +926,3 @@ function ClubCard({
     </button>
   );
 }
-
