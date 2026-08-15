@@ -1,11 +1,11 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -167,5 +167,35 @@ export default function LoginPage() {
         </div>
       </section>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen bg-[#0a0a0a] text-white">
+          <section className="mx-auto max-w-md px-6 py-16">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-8">
+              <div className="text-center">
+                <p className="text-xs uppercase tracking-[0.2em] text-[#b8f500]">
+                  Welcome back
+                </p>
+
+                <h1 className="mt-3 text-3xl font-bold tracking-tight">
+                  Log in
+                </h1>
+
+                <p className="mt-3 text-sm text-white/40">
+                  Loading...
+                </p>
+              </div>
+            </div>
+          </section>
+        </main>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }
